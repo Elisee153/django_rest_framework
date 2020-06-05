@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from rest_framework.parsers import JSONParser
 from .models import Article
@@ -14,6 +14,11 @@ from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework import mixins
 #========================================
+#Authentification
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication,TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+#ViewSet and Router
+from rest_framework import viewsets
 # Creation de view basé sur les fonctions.
 
 #@ csrf_exempt
@@ -137,10 +142,12 @@ class GenericAPIView(generics.GenericAPIView, mixins.ListModelMixin, mixins.Crea
                       mixins.DestroyModelMixin):
     
     serializer_class = ArticleSerializer
-    queryset = Article.objects.all()
-    
+    queryset = Article.objects.all()    
     lookup_field = "id"
-    
+    #authentification
+    #authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
     
     # """
     # def get(self, request):
@@ -161,3 +168,55 @@ class GenericAPIView(generics.GenericAPIView, mixins.ListModelMixin, mixins.Crea
     
     def delete(self,request,id):
         return self.destroy(request,id)
+
+#creation des viewsets
+
+class ArticleViewSet(viewsets.ViewSet):
+    
+    def list(self, request): 
+        articles = Article.objects.all()
+        serializer = ArticleSerializer(articles, many=True)
+        return Response(serializer.data)
+    
+    def create(self,request):
+        serializer = ArticleSerializer(data = request.data)
+        
+        if serializer.is_valid():
+            serializer.save()
+            Response(serializer.data,status = status.HTTP_201_CREATED)
+        Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+        
+     
+    def retrieve(self,request,pk = None):
+        queryset = Article.objects.all()
+        article = get_object_or_404(queryset,pk = pk)
+        serializer = ArticleSerializer(article)
+        return Response(serializer.data) 
+    
+    def update(self, request, pk=None):
+        article = Article.objects.get(pk=pk)
+        serializer = ArticleSerializer(article, data = request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+    
+    def destroy(self,request,pk=None):
+        article = Article.objects.get(pk=pk)
+        article.delete()
+        return Response(status = status.HTTP_204_NO_CONTENT)
+    
+#Generic viewSet
+
+class ArticleGenericViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
+                            mixins.CreateModelMixin, mixins.UpdateModelMixin,
+                            mixins.RetrieveModelMixin, mixins.DestroyModelMixin):
+    serializer_class = ArticleSerializer
+    queryset = Article.objects.all()
+    
+#Model viewset
+
+class ArticleModalViewSet(viewsets.ModelViewSet):
+    serializer_class = ArticleSerializer
+    queryset = Article.objects.all()
+    
